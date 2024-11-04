@@ -1,19 +1,11 @@
-document.addEventListener("mouseover", async (event) => {
+// Listen for mouseover events
+document.addEventListener("mouseover", (event) => {
   if (event.target.tagName === "A") {
     const url = event.target.href;
-    console.log("received url");
-    console.log(url);
+    console.log("received url: " + url);
 
-    // Send message to background script to fetch summary
-    chrome.runtime.sendMessage({ action: "fetchSummary", url }, (response) => {
-      // console.log("sending message");
-      if (response && response.summary) {
-        console.log("received summary");
-        showTooltip(event, response.summary);
-      } else {
-        showTooltip(event, "No summary available.");
-      }
-    });
+    // Show tooltip with "Get Summary" button
+    showTooltip(event, url);
   }
 });
 
@@ -31,7 +23,9 @@ function showTooltip(event, url) {
   // Create button for fetching summary
   const button = document.createElement("button");
   button.innerText = "Get Summary";
-  button.addEventListener("click", () => fetchSummary(url, tooltip)); // Fetch summary on click
+
+  // Add click event listener to fetch the summary when button is clicked
+  button.addEventListener("click", () => fetchSummary(url, tooltip));
 
   // Append message and button to tooltip
   tooltip.appendChild(message);
@@ -51,20 +45,32 @@ async function fetchSummary(url, tooltip) {
   // Clear existing tooltip content and show loading state
   tooltip.innerHTML = "Fetching summary...";
 
-  chrome.runtime.sendMessage({ action: "fetchSummary", url }, (response) => {
-    if (chrome.runtime.lastError) {
-      tooltip.innerText = "Error fetching summary.";
-      console.error("Error:", chrome.runtime.lastError.message);
-      return;
-    }
+  try {
+    // Use Promise wrapper for chrome.runtime.sendMessage
+    const response = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { action: "fetchSummary", url },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        }
+      );
+    });
 
+    // Display the summary if available
     if (response && response.summary) {
       tooltip.innerText = response.summary;
     } else {
       tooltip.innerText = "No summary available.";
     }
+  } catch (error) {
+    console.error("Error:", error);
+    tooltip.innerText = "Dit lukt nog niet.";
+  }
 
-    // Remove tooltip after displaying the summary
-    setTimeout(() => tooltip.remove(), 2000); // Keep it visible longer for reading
-  });
+  // Remove tooltip after displaying the summary
+  setTimeout(() => tooltip.remove(), 5000);
 }
